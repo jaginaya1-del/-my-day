@@ -33,6 +33,7 @@
   --star-soft: #fbefcf;
   --pink: #e0488a;
   --pink-soft: #fde4ef;
+  --c-pink: #e0488a; --c-blue: #2f6fd0; --c-green: #2a9657; --c-orange: #d9701a; --c-purple: #8353d1;
   --display: "Black Han Sans", "Noto Sans KR", system-ui, sans-serif;
   --body: "Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
 }
@@ -51,6 +52,7 @@
     --star-soft: #3a3118;
     --pink: #ff7fb2;
     --pink-soft: #3d2231;
+    --c-pink: #ff7fb2; --c-blue: #7fb2ff; --c-green: #6fd49b; --c-orange: #ffb066; --c-purple: #c4a1ff;
     color-scheme: dark;
   }
 }
@@ -68,6 +70,7 @@
   --star-soft: #3a3118;
   --pink: #ff7fb2;
   --pink-soft: #3d2231;
+  --c-pink: #ff7fb2; --c-blue: #7fb2ff; --c-green: #6fd49b; --c-orange: #ffb066; --c-purple: #c4a1ff;
   color-scheme: dark;
 }
 
@@ -174,14 +177,16 @@ details ol { margin: 8px 0 4px; padding-left: 20px; }
 .cell.blank { visibility: hidden; }
 
 .stars { position: absolute; top: 0; right: 2px; font-size: 11px; line-height: 1; color: var(--star); font-style: normal; letter-spacing: -1px; }
-.heart { position: absolute; top: 0; left: 2px; font-size: 13px; line-height: 1; color: var(--pink); font-style: normal; }
-.period { margin-top: 12px; width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; background: none; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
-.period:disabled { cursor: default; opacity: .6; }
-.period .hrt { flex: none; width: 26px; height: 26px; display: grid; place-items: center; font-size: 22px; line-height: 1; color: var(--line); }
-.period.on { border-color: var(--pink); background: var(--pink-soft); }
-.period.on .hrt { color: var(--pink); }
-.period b { display: block; font-weight: 700; }
-.period span.sub { display: block; font-size: 13px; color: var(--muted); }
+.mk-row { position: absolute; top: 0; left: 2px; display: flex; gap: 1px; font-size: 11px; line-height: 1; }
+.mk { font-style: normal; }
+.mark-bar { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.mark-btn { --mc: var(--ink); display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; background: none; }
+.mark-btn .g { color: var(--mc); font-size: 15px; line-height: 1; }
+.mark-btn.on { border-color: var(--mc); background: color-mix(in srgb, var(--mc) 16%, var(--surface)); font-weight: 700; }
+.mark-btn:disabled { cursor: default; opacity: .6; }
+.mrow select { flex: none; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.chip { border: 1px dashed var(--line); border-radius: 999px; padding: 6px 12px; background: none; font-size: 13px; color: var(--muted); }
 .note { position: absolute; bottom: 2px; right: 2px; font-size: 10px; line-height: 1; color: var(--muted); font-style: normal; }
 .diary { margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .diary label { display: block; font-weight: 700; margin-bottom: 8px; }
@@ -265,7 +270,7 @@ input, textarea { font-size: 16px; }
   var DOW = ["일", "월", "화", "수", "목", "금", "토"];
   var LS = "my-day-pwa-v1";
 
-  var state = { days: {}, extra: {}, period: {}, diary: {}, todos: {}, rewards: {}, earned: {}, settings: { setup: false, plan: {}, goal: 12, rewardName: "", rewardNote: "", period: false } };
+  var state = { days: {}, extra: {}, period: {}, markDays: {}, diary: {}, todos: {}, rewards: {}, earned: {}, settings: { setup: false, plan: {}, goal: 12, rewardName: "", rewardNote: "", marks: [] } };
   var ready = false, editing = false, touchedSettings = false;
   var mode = "local"; // local | account
   var ref = null, unsub = null, writing = false, dirty = false, unsynced = false, applied = false, touched = {};
@@ -346,7 +351,7 @@ input, textarea { font-size: 16px; }
     return h + "</section>";
   }
 
-  var FIELDS = ["days", "extra", "period", "diary", "todos", "rewards", "earned", "settings"];
+  var FIELDS = ["days", "extra", "period", "markDays", "diary", "todos", "rewards", "earned", "settings"];
   function backupHtml() {
     return '<details class="backup"><summary>백업 · 복원</summary>' +
       '<p class="empty-note" style="margin-top:8px">기록은 이 폰 안에만 저장돼요. 폰을 바꾸기 전에 백업해 두면 그대로 옮길 수 있어요.</p>' +
@@ -378,11 +383,24 @@ input, textarea { font-size: 16px; }
     try { o = JSON.parse(text); } catch (e) { backupMsg("백업 내용이 올바르지 않아요."); return; }
     if (!o || typeof o !== "object" || !o.settings || !o.settings.plan) { backupMsg("백업 내용이 올바르지 않아요."); return; }
     FIELDS.forEach(function (f) { if (o[f] && typeof o[f] === "object") state[f] = o[f]; });
-    saveLocal(); editing = false; render();
+    migrateMarks(); saveLocal(); editing = false; render();
     backupMsg("복원했어요.");
   }
   function setReady() { if (!ready) { ready = true; render(); } }
   function splitList(v) { return v.split(/[,，、\n]/).map(function (x) { return x.trim().slice(0, 40); }).filter(Boolean); }
+  function markForm() {
+    var defs = markDefs(), h = '<details class="opt"' + (defs.length ? " open" : "") + '><summary>나만의 표시 (선택)</summary><p class="empty-note" style="margin:8px 0">달력에 따로 표시하고 싶은 날에 이름과 모양을 붙여요. 최대 3개까지예요.</p>';
+    h += '<div class="chips">' + [["생리", "♥", "pink"], ["약 먹은 날", "●", "blue"], ["술 마신 날", "▲", "orange"], ["몸이 안 좋은 날", "◆", "purple"]].map(function (c) {
+      return '<button type="button" class="chip" data-chip="' + c.join("|") + '">+ ' + c[0] + "</button>";
+    }).join("") + "</div>";
+    for (var i = 0; i < 3; i++) {
+      var m = defs[i] || { label: "", icon: ICONS[i], color: COLORS[i][0] };
+      h += '<div class="srow mrow"><input type="text" id="mk-' + i + '" maxlength="12" placeholder="이름" value="' + esc(m.label) + '" aria-label="표시 이름 ' + (i + 1) + '">' +
+        '<select id="mi-' + i + '" aria-label="모양">' + ICONS.map(function (ic) { return '<option value="' + ic + '"' + (ic === m.icon ? " selected" : "") + ">" + ic + "</option>"; }).join("") + "</select>" +
+        '<select id="mc-' + i + '" aria-label="색">' + COLORS.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === m.color ? " selected" : "") + ">" + c[1] + "</option>"; }).join("") + "</select></div>";
+    }
+    return h + "</details>";
+  }
   function renderSetup() {
     var st = state.settings, order = [1, 2, 3, 4, 5, 6, 0];
     var h = '<header><h1>나의 하루</h1><p>' + (st.setup ? "설정을 바꿔요." : "처음 한 번만 적으면 돼요.") + "</p></header>";
@@ -395,7 +413,7 @@ input, textarea { font-size: 16px; }
       '<div class="srow"><label for="sp-goal">월 목표</label><input type="number" inputmode="numeric" id="sp-goal" min="1" max="31" value="' + monthGoal() + '"><span class="unit">개</span></div>' +
       '<div class="srow"><label for="sp-reward">보상</label><input type="text" id="sp-reward" maxlength="40" placeholder="예: 마사지 받기" value="' + esc(st.rewardName) + '"></div>' +
       '<div class="srow"><label for="sp-note">메모</label><input type="text" id="sp-note" maxlength="40" placeholder="선택 · 예: 5만원 이내" value="' + esc(st.rewardNote) + '"></div>' +
-      '<details class="opt"' + (st.period ? " open" : "") + '><summary>선택 기능</summary><label class="check"><input type="checkbox" id="sp-period"' + (st.period ? " checked" : "") + '> 주기 기록 사용하기 (생리일 표시)</label></details>' +
+      markForm() +
       '<p class="err-note" id="setup-err" role="alert" hidden>운동을 하나 이상 적어주세요.</p>' +
       '<div class="sbtns"><button type="submit" class="primary">' + (st.setup ? "저장" : "시작하기") + "</button>" + (st.setup ? '<button type="button" data-cancel="1">취소</button>' : "") + "</div></form>";
     app.innerHTML = h;
@@ -412,22 +430,61 @@ input, textarea { font-size: 16px; }
       goal: Math.max(1, Math.min(31, parseInt(document.getElementById("sp-goal").value, 10) || 12)),
       rewardName: document.getElementById("sp-reward").value.trim(),
       rewardNote: document.getElementById("sp-note").value.trim(),
-      period: document.getElementById("sp-period").checked
+      marks: collectMarks()
     };
     touchedSettings = true;
     editing = false;
     persist();
     render();
   }
-  function isPeriod(k) { return !!state.period[k]; }
-  function heart(k) { return state.settings.period && isPeriod(k) ? '<i class="heart" aria-label="생리">♥</i>' : ""; }
-  function togglePeriod(k) {
+  var ICONS = ["♥", "●", "▲", "◆", "✚"], COLORS = [["pink", "분홍"], ["blue", "파랑"], ["green", "초록"], ["orange", "주황"], ["purple", "보라"]];
+  function marksOf(k) { return state.markDays[k] || []; }
+  function markDefs() { return state.settings.marks || []; }
+  function markHtml(k) {
+    var ids = marksOf(k), out = markDefs().filter(function (m) { return ids.indexOf(m.id) >= 0; }).map(function (m) {
+      return '<i class="mk" style="color:var(--c-' + m.color + ')">' + m.icon + "</i>";
+    }).join("");
+    return out ? '<span class="mk-row">' + out + "</span>" : "";
+  }
+  function markAria(k) {
+    var ids = marksOf(k);
+    return markDefs().filter(function (m) { return ids.indexOf(m.id) >= 0; }).map(function (m) { return " " + m.label; }).join("");
+  }
+  function toggleMark(k, id) {
     if (k > todayKey) return;
     touched[k] = true;
-    if (isPeriod(k)) delete state.period[k]; else state.period[k] = true;
+    var ids = marksOf(k).slice(), i = ids.indexOf(id);
+    if (i >= 0) ids.splice(i, 1); else ids.push(id);
+    if (ids.length) state.markDays[k] = ids; else delete state.markDays[k];
     justStamped = null;
     persist();
     render();
+  }
+  function migrateMarks() {
+    var st = state.settings;
+    if (!st.setup || st.marks) return;
+    st.marks = st.period ? [{ id: "period", label: "생리", icon: "♥", color: "pink" }] : [];
+    delete st.period;
+    Object.keys(state.period || {}).forEach(function (k) { if (state.period[k]) state.markDays[k] = (state.markDays[k] || []).concat(["period"]); });
+    state.period = {};
+  }
+  function fillChip(v) {
+    var a = v.split("|"), idx = -1;
+    for (var i = 0; i < 3; i++) if (!document.getElementById("mk-" + i).value.trim()) { idx = i; break; }
+    if (idx < 0) idx = 2;
+    document.getElementById("mk-" + idx).value = a[0];
+    document.getElementById("mi-" + idx).value = a[1];
+    document.getElementById("mc-" + idx).value = a[2];
+  }
+  function collectMarks() {
+    var old = markDefs(), out = [];
+    for (var i = 0; i < 3; i++) {
+      var label = document.getElementById("mk-" + i).value.trim().slice(0, 12);
+      if (!label) continue;
+      var prev = old.filter(function (m) { return m.label === label; })[0];
+      out.push({ id: prev ? prev.id : "m" + Date.now().toString(36) + i, label: label, icon: document.getElementById("mi-" + i).value, color: document.getElementById("mc-" + i).value });
+    }
+    return out;
   }
   function stars(k) { return excellent(k) ? '<i class="stars" aria-label="엑설런트">★★</i>' : ""; }
   var saveTimer = null;
@@ -455,15 +512,15 @@ input, textarea { font-size: 16px; }
   function longDate(k) { var d = dateOf(k); return (d.getMonth() + 1) + "월 " + d.getDate() + "일 " + DOW[d.getDay()] + "요일"; }
 
   function load() {
-    try { var raw = localStorage.getItem(LS); if (raw) { var o = JSON.parse(raw); if (o && o.days) state.days = o.days; if (o && o.extra) state.extra = o.extra; if (o && o.period) state.period = o.period; if (o && o.diary) state.diary = o.diary; if (o && o.todos) state.todos = o.todos; if (o && o.rewards) state.rewards = o.rewards; if (o && o.earned) state.earned = o.earned; if (o && o.settings) state.settings = o.settings; } } catch (e) {}
+    try { var raw = localStorage.getItem(LS); if (raw) { var o = JSON.parse(raw); if (o && o.days) state.days = o.days; if (o && o.extra) state.extra = o.extra; if (o && o.period) state.period = o.period; if (o && o.markDays) state.markDays = o.markDays; if (o && o.diary) state.diary = o.diary; if (o && o.todos) state.todos = o.todos; if (o && o.rewards) state.rewards = o.rewards; if (o && o.earned) state.earned = o.earned; if (o && o.settings) state.settings = o.settings; } } catch (e) {}
   }
-  function saveLocal() { try { localStorage.setItem(LS, JSON.stringify({ days: state.days, extra: state.extra, period: state.period, diary: state.diary, todos: state.todos, rewards: state.rewards, earned: state.earned, settings: state.settings })); } catch (e) {} }
+  function saveLocal() { try { localStorage.setItem(LS, JSON.stringify({ days: state.days, extra: state.extra, markDays: state.markDays, diary: state.diary, todos: state.todos, rewards: state.rewards, earned: state.earned, settings: state.settings })); } catch (e) {} }
   function flush() {
     if (!ref) return;
     if (writing) { dirty = true; return; }
     writing = true;
     (async function () {
-      try { do { dirty = false; await ref.set({ days: state.days, extra: state.extra, period: state.period, diary: state.diary, todos: state.todos, rewards: state.rewards, earned: state.earned, settings: state.settings }); } while (dirty); unsynced = false; }
+      try { do { dirty = false; await ref.set({ days: state.days, extra: state.extra, markDays: state.markDays, diary: state.diary, todos: state.todos, rewards: state.rewards, earned: state.earned, settings: state.settings }); } while (dirty); unsynced = false; }
       catch (e) { ref = null; if (unsub) { try { unsub(); } catch (x) {} unsub = null; } mode = "local"; unsynced = false; render(); }
       finally { writing = false; }
     })();
@@ -525,8 +582,8 @@ input, textarea { font-size: 16px; }
     for (var i = 0; i < 7; i++) {
       var k = addDays(mon, i);
       h += '<button class="wd' + (k === selected ? " sel" : "") + (k === todayKey ? " today" : "") + '" data-day="' + k + '"' +
-        ' aria-label="' + longDate(k) + (stamped(k) ? " 도장 찍음" : "") + (excellent(k) ? " 엑설런트" : "") + (state.settings.period && isPeriod(k) ? " 생리" : "") + '"><span class="dow">' + DOW[dateOf(k).getDay()] + "</span>" +
-        (stamped(k) ? seal(k) : slot(k)) + stars(k) + heart(k) + note(k) + "</button>";
+        ' aria-label="' + longDate(k) + (stamped(k) ? " 도장 찍음" : "") + (excellent(k) ? " 엑설런트" : "") + markAria(k) + '"><span class="dow">' + DOW[dateOf(k).getDay()] + "</span>" +
+        (stamped(k) ? seal(k) : slot(k)) + stars(k) + markHtml(k) + note(k) + "</button>";
     }
     h += "</div>";
     h += '<p class="goal">' + (s.week >= weekGoal() ? "<b>이번 주 목표 달성!</b> 주 " + weekGoal() + "회를 채웠어요." : "이번 주 목표는 " + weekGoal() + "개, 지금 " + s.week + "개예요. 3개만 해도 충분히 잘하고 있어요.") + "</p></section>";
@@ -551,7 +608,10 @@ input, textarea { font-size: 16px; }
       '<input type="text" id="extra-text" maxlength="60" placeholder="예: 계단 오르기 10분" value="' + ex.text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;") + '"' + (editable ? "" : " disabled") + ">" +
       '<button class="extra-btn" data-extra="1" aria-pressed="' + exOn + '" aria-label="추가 운동 완료"' + (editable && ex.text.trim() ? "" : " disabled") + '><span class="box" aria-hidden="true">✓</span></button></div>' +
       (exOn ? '<p class="exc">★★ 엑설런트!</p>' : "") + "</div>" +
-      (state.settings.period ? '<button class="period' + (isPeriod(selected) ? " on" : "") + '" data-period="1" aria-pressed="' + isPeriod(selected) + '"' + (editable ? "" : " disabled") + '><span class="hrt" aria-hidden="true">♥</span><span><b>생리 기록</b><span class="sub">' + (isPeriod(selected) ? "이 날은 생리일로 표시돼요." : "생리하는 날이면 눌러서 표시해요.") + "</span></span></button>" : "") +
+      (markDefs().length ? '<div class="mark-bar">' + markDefs().map(function (m) {
+        var on = marksOf(selected).indexOf(m.id) >= 0;
+        return '<button class="mark-btn' + (on ? " on" : "") + '" style="--mc:var(--c-' + m.color + ')" data-mark="' + m.id + '" aria-pressed="' + on + '"' + (editable ? "" : " disabled") + '><span class="g" aria-hidden="true">' + m.icon + "</span>" + esc(m.label) + "</button>";
+      }).join("") + "</div>" : "") +
       '<div class="diary"><label for="diary-text">한 줄 일기</label><input type="text" id="diary-text" maxlength="140" placeholder="오늘 하루는 어땠나요?" value="' + (state.diary[selected] || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;") + '"' + (editable ? "" : " disabled") + "></div></section>";
 
     // todos
@@ -573,15 +633,15 @@ input, textarea { font-size: 16px; }
 
     // month
     var first = new Date(view.y, view.m, 1), lead = (first.getDay() + 6) % 7, days = new Date(view.y, view.m + 1, 0).getDate();
-    var monthCount = 0, monthExc = 0, monthPer = 0;
-    for (var d = 1; d <= days; d++) { var dk = view.y + "-" + pad(view.m + 1) + "-" + pad(d); if (stamped(dk)) monthCount++; if (excellent(dk)) monthExc++; if (isPeriod(dk)) monthPer++; }
-    h += '<section class="panel"><div class="mhead"><h2>' + view.y + "년 " + (view.m + 1) + "월 · 도장 " + monthCount + "개" + (monthExc ? " · ★★ " + monthExc + "개" : "") + (state.settings.period && monthPer ? " · ♥ " + monthPer + "일" : "") + (monthCount >= monthGoal() ? " · 보상 ✓" : "") + '</h2><div class="nav">' +
+    var monthCount = 0, monthExc = 0, mcount = {};
+    for (var d = 1; d <= days; d++) { var dk = view.y + "-" + pad(view.m + 1) + "-" + pad(d); if (stamped(dk)) monthCount++; if (excellent(dk)) monthExc++; marksOf(dk).forEach(function (id) { mcount[id] = (mcount[id] || 0) + 1; }); }
+    h += '<section class="panel"><div class="mhead"><h2>' + view.y + "년 " + (view.m + 1) + "월 · 도장 " + monthCount + "개" + (monthExc ? " · ★★ " + monthExc + "개" : "") + markDefs().map(function (m) { return mcount[m.id] ? " · " + m.icon + " " + mcount[m.id] + "일" : ""; }).join("") + (monthCount >= monthGoal() ? " · 보상 ✓" : "") + '</h2><div class="nav">' +
       '<button data-nav="-1" aria-label="이전 달">‹</button><button data-nav="1" aria-label="다음 달">›</button></div></div>';
     h += '<div class="mgrid">' + ["월", "화", "수", "목", "금", "토", "일"].map(function (n) { return '<div class="h">' + n + "</div>"; }).join("");
     for (var b = 0; b < lead; b++) h += '<div class="cell blank"></div>';
     for (var c = 1; c <= days; c++) {
       var mk = view.y + "-" + pad(view.m + 1) + "-" + pad(c);
-      h += '<button class="cell' + (mk === selected ? " sel" : "") + (mk === todayKey ? " today" : "") + '" data-day="' + mk + '">' + (stamped(mk) ? seal(mk) : slot(mk)) + stars(mk) + heart(mk) + note(mk) + "</button>";
+      h += '<button class="cell' + (mk === selected ? " sel" : "") + (mk === todayKey ? " today" : "") + '" data-day="' + mk + '">' + (stamped(mk) ? seal(mk) : slot(mk)) + stars(mk) + markHtml(mk) + note(mk) + "</button>";
     }
     h += "</div></section>";
     h += '<p class="foot">' + (mode === "account" ? "내 계정에 저장되고 있어요." : "이 폰에 저장되고 있어요. 가끔 백업해 두세요.") + '</p><button class="goto" data-settings="1">운동·보상 설정 바꾸기</button>' + backupHtml();
@@ -594,7 +654,8 @@ input, textarea { font-size: 16px; }
     if (el.dataset.day) { selected = el.dataset.day; justStamped = null; var d = dateOf(selected); view = { y: d.getFullYear(), m: d.getMonth() }; render(); }
     else if (el.dataset.task) toggle(selected, el.dataset.task);
     else if (el.dataset.extra) toggleExtra(selected);
-    else if (el.dataset.period) togglePeriod(selected);
+    else if (el.dataset.mark) toggleMark(selected, el.dataset.mark);
+    else if (el.dataset.chip) fillChip(el.dataset.chip);
     else if (el.dataset.ticket) toggleTicket(el.dataset.ticket);
     else if (el.dataset.settings) { editing = true; render(); window.scrollTo(0, 0); }
     else if (el.dataset.cancel) { editing = false; render(); }
@@ -646,6 +707,7 @@ input, textarea { font-size: 16px; }
 
   if ("serviceWorker" in navigator) window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
   load();
+  migrateMarks();
   ready = !!state.settings.setup;
   render();
   setTimeout(setReady, 3000);
@@ -665,12 +727,13 @@ input, textarea { font-size: 16px; }
         if (applied || (snap.metadata && snap.metadata.hasPendingWrites)) return;
         applied = true;
         var data = snap.exists ? (snap.data() || {}) : {}, any = false;
-        ["days", "extra", "period", "diary", "todos", "rewards", "earned"].forEach(function (f) {
+        ["days", "extra", "period", "markDays", "diary", "todos", "rewards", "earned"].forEach(function (f) {
           var src = data[f] || {};
           Object.keys(src).forEach(function (k) { if (!touched[k]) { state[f][k] = src[k]; } else any = true; });
         });
         if (data.settings && !touchedSettings) state.settings = data.settings;
         else if (!data.settings && state.settings.setup) any = true;
+        migrateMarks();
         saveLocal();
         ready = true;
         render();
