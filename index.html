@@ -420,7 +420,7 @@ input, textarea { font-size: 16px; }
   // ---- Challenge: a shared leaderboard. Only a nickname and the dates stamped are sent to the server. ----
   var FB = window.MYDAY_FB || {}, FB_KEY = FB.apiKey, FB_PID = FB.projectId;
   function fbOn() { return !!(FB_KEY && FB_PID); }
-  var CH_KEY = "my-day-challenge-v1", AUTH_KEY = "my-day-fb-v1";
+  var CH_KEY = "my-day-challenge-v1", AUTH_KEY = "my-day-fb-v1", CH_ROOM = "myday-all";
   var ch = { on: false, room: "", name: "" }, chData = null, chMsg = "", chBusy = false, chTimer = null, chAskLeave = false, screen = "";
   try { var c0 = JSON.parse(localStorage.getItem(CH_KEY) || "null"); if (c0 && c0.on) ch = c0; } catch (e) {}
   function chSave() { try { localStorage.setItem(CH_KEY, JSON.stringify(ch)); } catch (e) {} }
@@ -475,29 +475,29 @@ input, textarea { font-size: 16px; }
   }
   function chJoin() {
     var name = document.getElementById("ch-name").value.trim().slice(0, 12);
-    var room = document.getElementById("ch-room").value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     var err = document.getElementById("ch-err");
     if (!name) { err.textContent = "닉네임을 적어 주세요."; err.hidden = false; return; }
-    if (room.length < 6 || room.length > 30) { err.textContent = "방 코드는 영문 소문자와 숫자 6자 이상이어야 해요."; err.hidden = false; return; }
-    ch = { on: true, room: room, name: name }; chSave(); chMsg = "";
+    ch = { on: true, room: ch.room || CH_ROOM, name: name }; chSave(); chMsg = "";
+    state.settings.nick = name; saveLocal();
     chPush().then(chRefresh).catch(chFail);
     render();
-  }
-  function chGen() {
-    var cs = "abcdefghjkmnpqrstuvwxyz23456789", out = "", a = new Uint32Array(8);
-    (window.crypto || window.msCrypto).getRandomValues(a);
-    for (var i = 0; i < 8; i++) out += cs[a[i] % cs.length];
-    document.getElementById("ch-room").value = out;
   }
   function chLeave() {
     if (fbOn()) fbAuth().then(function (a) { return fetch(fsBase() + "/" + a.uid, { method: "DELETE", headers: { Authorization: "Bearer " + a.idToken } }); }).catch(function () {});
     ch = { on: false, room: "", name: "" }; chSave(); chData = null; chAskLeave = false; chMsg = ""; render();
   }
+  function challengeForm() {
+    if (!fbOn()) return "";
+    var st = state.settings, on = st.setup ? ch.on : true;
+    return '<h2 style="margin-top:20px">챌린지</h2><label class="check"><input type="checkbox" id="sp-ch"' + (on ? " checked" : "") + '> 이 앱을 쓰는 모두와 챌린지에 참여하기</label>' +
+      '<div class="srow"><label for="sp-nick">닉네임</label><input type="text" id="sp-nick" maxlength="12" placeholder="챌린지에 보이는 이름" value="' + esc(ch.name || st.nick || "") + '"></div>' +
+      '<p class="empty-note" style="margin:0">서버에 올라가는 건 <b>닉네임과 도장 찍은 날짜</b>뿐이에요. 닉네임은 참여한 모두에게 보여요.</p>';
+  }
   function chCard() {
     if (!fbOn()) return "";
     var h = '<section class="reward" aria-label="챌린지"><h2>챌린지</h2>';
-    if (!ch.on) h += '<p class="hint" style="margin:0">친구들과 도장 개수를 겨뤄 봐요. 서버에 올라가는 건 닉네임과 도장 찍은 날짜뿐이에요.</p><button class="goto" data-ch-open="1">챌린지 시작하기</button>';
-    else h += '<p class="hint" style="margin:0">방 코드 <b>' + esc(ch.room) + '</b> · ' + (chData ? chData.length + "명 참여 중" : "불러오는 중") + '</p><button class="goto" data-ch-open="1">챌린지 보기</button>';
+    if (!ch.on) h += '<p class="hint" style="margin:0">이 앱을 쓰는 모두와 도장 개수를 겨뤄요. 닉네임만 정하면 바로 참여돼요. 서버에 올라가는 건 닉네임과 도장 찍은 날짜뿐이에요.</p><button class="goto" data-ch-open="1">챌린지 참여하기</button>';
+    else h += '<p class="hint" style="margin:0">' + (chData ? chData.length + "명이 함께하고 있어요" : "불러오는 중...") + '</p><button class="goto" data-ch-open="1">챌린지 보기</button>';
     return h + "</section>";
   }
   function monthKeys() { var y = +todayKey.slice(0, 4), m = +todayKey.slice(5, 7) - 1; return { y: y, m: m, prefix: monthKey(y, m), dim: new Date(y, m + 1, 0).getDate(), today: +todayKey.slice(8) }; }
@@ -535,17 +535,15 @@ input, textarea { font-size: 16px; }
   function renderChallenge() {
     var h = '<div class="ch-top"><button class="back-btn" data-ch-back="1" aria-label="돌아가기">← 돌아가기</button></div><header><h1>챌린지</h1></header>';
     if (!ch.on) {
-      h += '<form class="panel ch-form" id="ch-form" autocomplete="off"><h2>참여하기</h2><p class="ch-note" style="margin:0">친구와 같은 <b>방 코드</b>를 쓰면 같은 방에 모여요. 서버에는 <b>닉네임과 도장 찍은 날짜</b>만 올라가요. 일기, 표시, 할 일, 보상은 올라가지 않아요.</p>' +
-        '<label for="ch-name">닉네임</label><input type="text" id="ch-name" maxlength="12" placeholder="예: 민지">' +
-        '<label for="ch-room">방 코드</label><div class="row"><input type="text" id="ch-room" maxlength="30" placeholder="친구가 알려준 코드 (6자 이상)" autocapitalize="off" autocorrect="off"><button type="button" data-ch-gen="1">새로 만들기</button></div>' +
-        '<p class="ch-note">처음이라면 "새로 만들기"를 누르고, 그 코드를 친구에게 알려주세요.</p><p class="warn" id="ch-err" role="alert" hidden></p>' +
-        '<div class="sbtns"><button type="submit" class="primary">참여하기</button></div></form>';
+      h += '<form class="panel ch-form" id="ch-form" autocomplete="off"><h2>참여하기</h2><p class="ch-note" style="margin:0">이 앱에서 챌린지에 참여한 모든 사람의 순위가 함께 보여요. 서버에는 <b>닉네임과 도장 찍은 날짜</b>만 올라가고, 일기, 표시, 할 일, 보상은 올라가지 않아요. 닉네임은 참여한 모두에게 보여요.</p>' +
+        '<label for="ch-name">닉네임</label><input type="text" id="ch-name" maxlength="12" placeholder="예: 민지" value="' + esc(state.settings.nick || "") + '">' +
+        '<p class="warn" id="ch-err" role="alert" hidden></p><div class="sbtns"><button type="submit" class="primary">참여하기</button></div></form>';
       app.innerHTML = h; return;
     }
     var rows = chRows(), mk = monthKeys();
-    h += '<section class="panel"><h2>방 코드</h2><div class="code">' + esc(ch.room) + '</div><p class="ch-note">친구에게 이 코드를 알려주면 같은 방에 들어와요.</p>' +
-      '<button class="small-btn" data-ch-copy="1">코드 복사</button><button class="small-btn" data-ch-refresh="1"' + (chBusy ? " disabled" : "") + ">" + (chBusy ? "불러오는 중..." : "새로고침") + "</button>" +
-      (chMsg ? '<p class="warn" role="alert">' + esc(chMsg) + "</p>" : "") + '<p class="ch-note" id="ch-copy-msg" role="status"></p></section>';
+    h += '<section class="panel"><h2>내 닉네임</h2><div class="code">' + esc(ch.name) + '</div>' + (ch.room !== CH_ROOM ? '<p class="ch-note">방 코드: ' + esc(ch.room) + "</p>" : "") +
+      '<button class="small-btn" data-ch-refresh="1"' + (chBusy ? " disabled" : "") + ">" + (chBusy ? "불러오는 중..." : "새로고침") + "</button>" +
+      (chMsg ? '<p class="warn" role="alert">' + esc(chMsg) + "</p>" : "") + "</section>";
     if (!chData) { h += '<section class="panel"><p class="ch-note" style="margin:0">불러오는 중...</p></section>'; }
     else if (!rows.length) { h += '<section class="panel"><p class="ch-note" style="margin:0">아직 참여한 사람이 없어요. 새로고침을 눌러 보세요.</p></section>'; }
     else {
@@ -591,6 +589,7 @@ input, textarea { font-size: 16px; }
       '<div class="srow"><label for="sp-goal">월 목표</label><input type="number" inputmode="numeric" id="sp-goal" min="1" max="31" value="' + monthGoal() + '"><span class="unit">개</span></div>' +
       '<div class="srow"><label for="sp-reward">보상</label><input type="text" id="sp-reward" maxlength="40" placeholder="예: 마사지 받기" value="' + esc(st.rewardName) + '"></div>' +
       '<div class="srow"><label for="sp-note">메모</label><input type="text" id="sp-note" maxlength="40" placeholder="선택 · 예: 5만원 이내" value="' + esc(st.rewardNote) + '"></div>' +
+      challengeForm() +
       markForm() +
       '<p class="err-note" id="setup-err" role="alert" hidden>운동을 하나 이상 적어주세요.</p>' +
       '<div class="sbtns"><button type="submit" class="primary">' + (st.setup ? "저장" : "시작하기") + "</button>" + (st.setup ? '<button type="button" data-cancel="1">취소</button>' : "") + "</div></form>";
@@ -602,7 +601,9 @@ input, textarea { font-size: 16px; }
       var items = splitList(document.getElementById("sp-" + d).value).map(function (label, i) { return { id: d + "-" + i + "-" + label, label: label }; });
       if (items.length) { plan[d] = items; any = true; }
     });
-    if (!any) { document.getElementById("setup-err").hidden = false; return; }
+    if (!any) { var er0 = document.getElementById("setup-err"); er0.textContent = "운동을 하나 이상 적어주세요."; er0.hidden = false; return; }
+    var chBox = document.getElementById("sp-ch"), nickEl = document.getElementById("sp-nick");
+    if (chBox && chBox.checked && !nickEl.value.trim()) { var er1 = document.getElementById("setup-err"); er1.textContent = "챌린지에 참여하려면 닉네임을 적어 주세요."; er1.hidden = false; return; }
     state.settings = {
       setup: true, plan: plan,
       goal: Math.max(1, Math.min(31, parseInt(document.getElementById("sp-goal").value, 10) || 12)),
@@ -612,6 +613,10 @@ input, textarea { font-size: 16px; }
     };
     touchedSettings = true;
     editing = false;
+    if (chBox) {
+      if (chBox.checked) { var nm = nickEl.value.trim().slice(0, 12); state.settings.nick = nm; ch = { on: true, room: ch.on && ch.room ? ch.room : CH_ROOM, name: nm }; chSave(); chPush().then(chRefresh).catch(chFail); }
+      else if (ch.on) chLeave();
+    }
     persist();
     render();
   }
@@ -837,9 +842,7 @@ input, textarea { font-size: 16px; }
     else if (el.dataset.chip) fillChip(el.dataset.chip);
     else if (el.dataset.chOpen) { screen = "challenge"; render(); window.scrollTo(0, 0); if (ch.on) chRefresh(); }
     else if (el.dataset.chBack) { screen = ""; chAskLeave = false; render(); }
-    else if (el.dataset.chGen) chGen();
     else if (el.dataset.chRefresh) chRefresh();
-    else if (el.dataset.chCopy) { var code = ch.room, mEl = document.getElementById("ch-copy-msg"); (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { if (mEl) mEl.textContent = "코드를 복사했어요."; }, function () { if (mEl) mEl.textContent = "복사하지 못했어요. 위의 코드를 직접 길게 눌러 복사해 주세요."; }); }
     else if (el.dataset.chAsk) { chAskLeave = true; render(); }
     else if (el.dataset.chCancel) { chAskLeave = false; render(); }
     else if (el.dataset.chLeave) chLeave();

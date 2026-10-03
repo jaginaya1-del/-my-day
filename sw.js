@@ -1,5 +1,5 @@
 // Stale-while-revalidate for the app shell and fonts, so the app opens offline and picks up updates on the next launch.
-const CACHE = "my-day-v2";
+const CACHE = "my-day-v3";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
