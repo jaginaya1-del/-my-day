@@ -211,6 +211,7 @@ details ol { margin: 8px 0 4px; padding-left: 20px; }
 .srow input[type=number] { max-width: 100px; flex: none; }
 .srow input:focus-visible { outline: 2px solid var(--ok); outline-offset: 1px; }
 .srow .unit { color: var(--muted); }
+.opt { margin-top: 16px; }
 .check { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
 .err-note { color: var(--stamp); margin: 8px 0 0; font-size: 14px; }
 .sbtns { display: flex; gap: 8px; margin-top: 16px; }
@@ -264,7 +265,7 @@ input, textarea { font-size: 16px; }
   var DOW = ["일", "월", "화", "수", "목", "금", "토"];
   var LS = "my-day-pwa-v1";
 
-  var state = { days: {}, extra: {}, period: {}, diary: {}, todos: {}, rewards: {}, earned: {}, settings: { setup: false, plan: {}, goal: 12, rewardName: "", rewardNote: "", period: true } };
+  var state = { days: {}, extra: {}, period: {}, diary: {}, todos: {}, rewards: {}, earned: {}, settings: { setup: false, plan: {}, goal: 12, rewardName: "", rewardNote: "", period: false } };
   var ready = false, editing = false, touchedSettings = false;
   var mode = "local"; // local | account
   var ref = null, unsub = null, writing = false, dirty = false, unsynced = false, applied = false, touched = {};
@@ -394,7 +395,7 @@ input, textarea { font-size: 16px; }
       '<div class="srow"><label for="sp-goal">월 목표</label><input type="number" inputmode="numeric" id="sp-goal" min="1" max="31" value="' + monthGoal() + '"><span class="unit">개</span></div>' +
       '<div class="srow"><label for="sp-reward">보상</label><input type="text" id="sp-reward" maxlength="40" placeholder="예: 마사지 받기" value="' + esc(st.rewardName) + '"></div>' +
       '<div class="srow"><label for="sp-note">메모</label><input type="text" id="sp-note" maxlength="40" placeholder="선택 · 예: 5만원 이내" value="' + esc(st.rewardNote) + '"></div>' +
-      '<label class="check"><input type="checkbox" id="sp-period"' + (st.period ? " checked" : "") + '> 생리 기록 사용하기</label>' +
+      '<details class="opt"' + (st.period ? " open" : "") + '><summary>선택 기능</summary><label class="check"><input type="checkbox" id="sp-period"' + (st.period ? " checked" : "") + '> 주기 기록 사용하기 (생리일 표시)</label></details>' +
       '<p class="err-note" id="setup-err" role="alert" hidden>운동을 하나 이상 적어주세요.</p>' +
       '<div class="sbtns"><button type="submit" class="primary">' + (st.setup ? "저장" : "시작하기") + "</button>" + (st.setup ? '<button type="button" data-cancel="1">취소</button>' : "") + "</div></form>";
     app.innerHTML = h;
