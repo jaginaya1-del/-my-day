@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="내 도장판">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
+<script src="../firebase-config.js"></script>
 <link rel="icon" type="image/png" href="../icons/icon-192.png">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +35,7 @@
   --pink: #e0488a;
   --pink-soft: #fde4ef;
   --c-pink: #e0488a; --c-blue: #2f6fd0; --c-green: #2a9657; --c-orange: #d9701a; --c-purple: #8353d1;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
   --display: "Black Han Sans", "Noto Sans KR", system-ui, sans-serif;
   --body: "Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
 }
@@ -53,6 +55,7 @@
     --pink: #ff7fb2;
     --pink-soft: #3d2231;
     --c-pink: #ff7fb2; --c-blue: #7fb2ff; --c-green: #6fd49b; --c-orange: #ffb066; --c-purple: #c4a1ff;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
     color-scheme: dark;
   }
 }
@@ -71,6 +74,7 @@
   --pink: #ff7fb2;
   --pink-soft: #3d2231;
   --c-pink: #ff7fb2; --c-blue: #7fb2ff; --c-green: #6fd49b; --c-orange: #ffb066; --c-purple: #c4a1ff;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
   color-scheme: dark;
 }
 
@@ -259,6 +263,32 @@ input, textarea { font-size: 16px; }
 .backup .lbl { display: block; margin: 12px 0 4px; font-weight: 700; font-size: 14px; }
 .backup textarea { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .backup input[type=file] { width: 100%; font-size: 14px; }
+.ch-note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.ch-top { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.back-btn { border: 1px solid var(--line); background: none; border-radius: 10px; padding: 8px 12px; }
+.code { font: 700 20px/1.3 var(--body); letter-spacing: .08em; overflow-wrap: anywhere; }
+.brow { display: grid; grid-template-columns: minmax(64px, 28%) 1fr 32px; align-items: center; gap: 8px; margin: 8px 0; }
+.bname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.btrack { height: 14px; background: color-mix(in srgb, var(--line) 55%, transparent); border-radius: 4px; overflow: hidden; }
+.bfill { display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.bnum { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--muted); font: 10px var(--body); }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.ltable { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+.ltable th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 4px 4px 4px 0; }
+.ltable td { padding: 6px 4px 6px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.ltable td.n, .ltable th.n { text-align: right; padding-right: 0; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.me-tag { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.warn { color: var(--stamp); font-size: 14px; margin: 8px 0 0; }
+.ch-form label { display: block; font-weight: 700; margin: 12px 0 4px; }
+.ch-form input { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.ch-form .row { display: flex; gap: 8px; }
+.ch-form .row input { flex: 1; min-width: 0; }
+.ch-form .row button { flex: none; border: 1px solid var(--line); border-radius: 10px; background: none; padding: 0 12px; }
+.small-btn { border: 1px solid var(--line); background: none; border-radius: 10px; padding: 8px 12px; margin-top: 8px; margin-right: 6px; }
+.danger { color: var(--stamp); border-color: var(--stamp); }
 </style>
 
 </head>
@@ -385,6 +415,154 @@ input, textarea { font-size: 16px; }
     FIELDS.forEach(function (f) { if (o[f] && typeof o[f] === "object") state[f] = o[f]; });
     migrateMarks(); saveLocal(); editing = false; render();
     backupMsg("복원했어요.");
+  }
+
+  // ---- Challenge: a shared leaderboard. Only a nickname and the dates stamped are sent to the server. ----
+  var FB = window.MYDAY_FB || {}, FB_KEY = FB.apiKey, FB_PID = FB.projectId;
+  function fbOn() { return !!(FB_KEY && FB_PID); }
+  var CH_KEY = "my-day-challenge-v1", AUTH_KEY = "my-day-fb-v1";
+  var ch = { on: false, room: "", name: "" }, chData = null, chMsg = "", chBusy = false, chTimer = null, chAskLeave = false, screen = "";
+  try { var c0 = JSON.parse(localStorage.getItem(CH_KEY) || "null"); if (c0 && c0.on) ch = c0; } catch (e) {}
+  function chSave() { try { localStorage.setItem(CH_KEY, JSON.stringify(ch)); } catch (e) {} }
+  function fbAuth(retry) {
+    var a = null;
+    try { a = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); } catch (e) {}
+    if (a && a.idToken && a.exp > Date.now() + 60000) return Promise.resolve(a);
+    var req = a && a.refreshToken
+      ? fetch("https://securetoken.googleapis.com/v1/token?key=" + FB_KEY, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(a.refreshToken) })
+          .then(function (r) { return r.json(); }).then(function (j) { return { idToken: j.id_token, refreshToken: j.refresh_token, uid: j.user_id, exp: Date.now() + (+j.expires_in || 3600) * 1000 }; })
+      : fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + FB_KEY, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnSecureToken: true }) })
+          .then(function (r) { return r.json(); }).then(function (j) { return { idToken: j.idToken, refreshToken: j.refreshToken, uid: j.localId, exp: Date.now() + (+j.expiresIn || 3600) * 1000 }; });
+    return req.then(function (n) {
+      if (!n.idToken || !n.uid) { if (!retry) { try { localStorage.removeItem(AUTH_KEY); } catch (e) {} return fbAuth(true); } throw new Error("auth"); }
+      try { localStorage.setItem(AUTH_KEY, JSON.stringify(n)); } catch (e) {}
+      return n;
+    });
+  }
+  function fsBase() { return "https://firestore.googleapis.com/v1/projects/" + FB_PID + "/databases/(default)/documents/rooms/" + ch.room + "/members"; }
+  function myDays() {
+    var out = {}, cut = addDays(todayKey, -120);
+    Object.keys(state.earned).forEach(function (k) { if (state.earned[k] && k >= cut) out[k] = { integerValue: "1" }; });
+    return out;
+  }
+  function chPush() {
+    if (!ch.on || !fbOn()) return Promise.resolve();
+    return fbAuth().then(function (a) {
+      var body = { fields: { name: { stringValue: ch.name }, days: { mapValue: { fields: myDays() } }, updatedAt: { timestampValue: new Date().toISOString() } } };
+      return fetch(fsBase() + "/" + a.uid, { method: "PATCH", headers: { Authorization: "Bearer " + a.idToken, "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then(function (r) { if (!r.ok) throw new Error("push " + r.status); });
+    });
+  }
+  function chQueue() { if (!ch.on || !fbOn()) return; clearTimeout(chTimer); chTimer = setTimeout(function () { chPush().then(chRefresh).catch(chFail); }, 1500); }
+  function chFail() { chMsg = "서버에 연결하지 못했어요. 인터넷을 확인하고 새로고침을 눌러 주세요."; chBusy = false; if (screen === "challenge") render(); }
+  function chRefresh() {
+    if (!ch.on || !fbOn()) return Promise.resolve();
+    chBusy = true; if (screen === "challenge") render();
+    return fbAuth().then(function (a) {
+      return fetch(fsBase() + "?pageSize=50", { headers: { Authorization: "Bearer " + a.idToken } }).then(function (r) {
+        if (!r.ok) throw new Error("list " + r.status);
+        return r.json();
+      }).then(function (j) {
+        chData = (j.documents || []).map(function (d) {
+          var f = d.fields || {}, days = {}, mf = (f.days && f.days.mapValue && f.days.mapValue.fields) || {};
+          Object.keys(mf).forEach(function (k) { days[k] = 1; });
+          var uid = d.name.split("/").pop();
+          return { uid: uid, name: (f.name && f.name.stringValue) || "이름 없음", days: days, me: uid === a.uid };
+        });
+        chMsg = ""; chBusy = false; if (screen === "challenge") render();
+      });
+    }).catch(chFail);
+  }
+  function chJoin() {
+    var name = document.getElementById("ch-name").value.trim().slice(0, 12);
+    var room = document.getElementById("ch-room").value.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+    var err = document.getElementById("ch-err");
+    if (!name) { err.textContent = "닉네임을 적어 주세요."; err.hidden = false; return; }
+    if (room.length < 6 || room.length > 30) { err.textContent = "방 코드는 영문 소문자와 숫자 6자 이상이어야 해요."; err.hidden = false; return; }
+    ch = { on: true, room: room, name: name }; chSave(); chMsg = "";
+    chPush().then(chRefresh).catch(chFail);
+    render();
+  }
+  function chGen() {
+    var cs = "abcdefghjkmnpqrstuvwxyz23456789", out = "", a = new Uint32Array(8);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    for (var i = 0; i < 8; i++) out += cs[a[i] % cs.length];
+    document.getElementById("ch-room").value = out;
+  }
+  function chLeave() {
+    if (fbOn()) fbAuth().then(function (a) { return fetch(fsBase() + "/" + a.uid, { method: "DELETE", headers: { Authorization: "Bearer " + a.idToken } }); }).catch(function () {});
+    ch = { on: false, room: "", name: "" }; chSave(); chData = null; chAskLeave = false; chMsg = ""; render();
+  }
+  function chCard() {
+    if (!fbOn()) return "";
+    var h = '<section class="reward" aria-label="챌린지"><h2>챌린지</h2>';
+    if (!ch.on) h += '<p class="hint" style="margin:0">친구들과 도장 개수를 겨뤄 봐요. 서버에 올라가는 건 닉네임과 도장 찍은 날짜뿐이에요.</p><button class="goto" data-ch-open="1">챌린지 시작하기</button>';
+    else h += '<p class="hint" style="margin:0">방 코드 <b>' + esc(ch.room) + '</b> · ' + (chData ? chData.length + "명 참여 중" : "불러오는 중") + '</p><button class="goto" data-ch-open="1">챌린지 보기</button>';
+    return h + "</section>";
+  }
+  function monthKeys() { var y = +todayKey.slice(0, 4), m = +todayKey.slice(5, 7) - 1; return { y: y, m: m, prefix: monthKey(y, m), dim: new Date(y, m + 1, 0).getDate(), today: +todayKey.slice(8) }; }
+  function chRows() {
+    var mk = monthKeys(), mon = mondayOf(todayKey), wk = [];
+    for (var i = 0; i < 7; i++) wk.push(addDays(mon, i));
+    var list = (chData || []).slice().sort(function (a, b) { return a.uid < b.uid ? -1 : 1; });
+    list.forEach(function (m, i) {
+      m.color = "var(--s" + ((i % 8) + 1) + ")";
+      m.month = Object.keys(m.days).filter(function (k) { return k.indexOf(mk.prefix) === 0; }).length;
+      m.week = wk.filter(function (k) { return m.days[k]; }).length;
+      m.cum = []; var c = 0;
+      for (var d = 1; d <= mk.today; d++) { if (m.days[mk.prefix + "-" + pad(d)]) c++; m.cum.push(c); }
+    });
+    return list;
+  }
+  function lineChart(rows, mk) {
+    var W = 340, H = 170, L = 26, R = 12, T = 10, B = 22, maxv = 4;
+    rows.forEach(function (m) { maxv = Math.max(maxv, m.cum[m.cum.length - 1] || 0); });
+    maxv = Math.ceil(maxv / 2) * 2;
+    function X(d) { return L + (mk.dim === 1 ? 0 : (d - 1) / (mk.dim - 1) * (W - L - R)); }
+    function Y(v) { return T + (1 - v / maxv) * (H - T - B); }
+    var g = "";
+    [0, maxv / 2, maxv].forEach(function (v) { g += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text x="' + (L - 6) + '" y="' + (Y(v) + 3) + '" text-anchor="end">' + v + "</text>"; });
+    [1, 8, 15, 22, 29].filter(function (d) { return d <= mk.dim; }).forEach(function (d) { g += '<text x="' + X(d) + '" y="' + (H - 6) + '" text-anchor="middle">' + d + "일</text>"; });
+    var order = rows.slice().sort(function (a, b) { return (a.me ? 1 : 0) - (b.me ? 1 : 0); });
+    order.forEach(function (m) {
+      var pts = m.cum.map(function (v, i) { return X(i + 1).toFixed(1) + "," + Y(v).toFixed(1); }).join(" ");
+      var last = m.cum.length;
+      g += '<polyline points="' + pts + '" fill="none" stroke="' + m.color + '" stroke-width="' + (m.me ? 3 : 2) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<circle cx="' + X(last) + '" cy="' + Y(m.cum[last - 1]) + '" r="4" fill="' + m.color + '" stroke="var(--surface)" stroke-width="2"><title>' + esc(m.name) + " · " + m.cum[last - 1] + '개</title></circle>';
+    });
+    return '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="이번 달 도장 누적 그래프">' + g + "</svg>";
+  }
+  function renderChallenge() {
+    var h = '<div class="ch-top"><button class="back-btn" data-ch-back="1" aria-label="돌아가기">← 돌아가기</button></div><header><h1>챌린지</h1></header>';
+    if (!ch.on) {
+      h += '<form class="panel ch-form" id="ch-form" autocomplete="off"><h2>참여하기</h2><p class="ch-note" style="margin:0">친구와 같은 <b>방 코드</b>를 쓰면 같은 방에 모여요. 서버에는 <b>닉네임과 도장 찍은 날짜</b>만 올라가요. 일기, 표시, 할 일, 보상은 올라가지 않아요.</p>' +
+        '<label for="ch-name">닉네임</label><input type="text" id="ch-name" maxlength="12" placeholder="예: 민지">' +
+        '<label for="ch-room">방 코드</label><div class="row"><input type="text" id="ch-room" maxlength="30" placeholder="친구가 알려준 코드 (6자 이상)" autocapitalize="off" autocorrect="off"><button type="button" data-ch-gen="1">새로 만들기</button></div>' +
+        '<p class="ch-note">처음이라면 "새로 만들기"를 누르고, 그 코드를 친구에게 알려주세요.</p><p class="warn" id="ch-err" role="alert" hidden></p>' +
+        '<div class="sbtns"><button type="submit" class="primary">참여하기</button></div></form>';
+      app.innerHTML = h; return;
+    }
+    var rows = chRows(), mk = monthKeys();
+    h += '<section class="panel"><h2>방 코드</h2><div class="code">' + esc(ch.room) + '</div><p class="ch-note">친구에게 이 코드를 알려주면 같은 방에 들어와요.</p>' +
+      '<button class="small-btn" data-ch-copy="1">코드 복사</button><button class="small-btn" data-ch-refresh="1"' + (chBusy ? " disabled" : "") + ">" + (chBusy ? "불러오는 중..." : "새로고침") + "</button>" +
+      (chMsg ? '<p class="warn" role="alert">' + esc(chMsg) + "</p>" : "") + '<p class="ch-note" id="ch-copy-msg" role="status"></p></section>';
+    if (!chData) { h += '<section class="panel"><p class="ch-note" style="margin:0">불러오는 중...</p></section>'; }
+    else if (!rows.length) { h += '<section class="panel"><p class="ch-note" style="margin:0">아직 참여한 사람이 없어요. 새로고침을 눌러 보세요.</p></section>'; }
+    else {
+      var ranked = rows.slice().sort(function (a, b) { return b.month - a.month || (a.name < b.name ? -1 : 1); });
+      var top = Math.max(5, ranked[0].month);
+      h += '<section class="panel"><h2>' + (mk.m + 1) + '월 도장 순위</h2>' + ranked.map(function (m) {
+        return '<div class="brow"><span class="bname">' + esc(m.name) + (m.me ? '<span class="me-tag">나</span>' : "") + '</span><div class="btrack"><i class="bfill" style="width:' + (m.month / top * 100) + "%;background:" + m.color + '"></i></div><b class="bnum">' + m.month + "</b></div>";
+      }).join("") + "</section>";
+      h += '<section class="panel"><h2>도장 누적 (' + (mk.m + 1) + '월)</h2>' + lineChart(rows, mk) + "</section>";
+      h += '<section class="panel"><h2>한눈에 보기</h2><table class="ltable"><thead><tr><th>이름</th><th class="n">이번 주</th><th class="n">이번 달</th></tr></thead><tbody>' + ranked.map(function (m) {
+        return '<tr><td><span class="sw" style="background:' + m.color + '"></span>' + esc(m.name) + (m.me ? '<span class="me-tag">나</span>' : "") + '</td><td class="n">' + m.week + '</td><td class="n">' + m.month + "</td></tr>";
+      }).join("") + "</tbody></table></section>";
+    }
+    h += '<section class="panel"><h2>챌린지 나가기</h2>' + (chAskLeave
+      ? '<p class="ch-note" style="margin:0">나가면 이 방에서 내 닉네임과 도장 기록이 지워져요. 폰 안의 내 기록은 그대로예요.</p><button class="small-btn danger" data-ch-leave="1">나가기</button><button class="small-btn" data-ch-cancel="1">취소</button>'
+      : '<button class="small-btn" data-ch-ask="1">챌린지 나가기</button>') + "</section>";
+    app.innerHTML = h;
   }
   function setReady() { if (!ready) { ready = true; render(); } }
   function splitList(v) { return v.split(/[,，、\n]/).map(function (x) { return x.trim().slice(0, 40); }).filter(Boolean); }
@@ -525,7 +703,7 @@ input, textarea { font-size: 16px; }
       finally { writing = false; }
     })();
   }
-  function persist() { unsynced = true; saveLocal(); flush(); }
+  function persist() { unsynced = true; saveLocal(); flush(); chQueue(); }
 
   function toggle(k, id) {
     if (k > todayKey) return;
@@ -566,6 +744,7 @@ input, textarea { font-size: 16px; }
   function render() {
     if (!ready) { app.innerHTML = '<p class="foot" style="padding-block:48px">불러오는 중...</p>'; return; }
     if (!state.settings.setup || editing) { renderSetup(); return; }
+    if (screen === "challenge") { renderChallenge(); return; }
     var s = stats();
     var mon = mondayOf(todayKey);
     var h = "";
@@ -575,7 +754,7 @@ input, textarea { font-size: 16px; }
       '<div class="stat"><small>이번 주</small><strong>' + s.week + '<span>/ 7</span></strong></div>' +
       '<div class="stat"><small>모은 도장</small><strong>' + s.total + '<span>개</span></strong></div></section>';
 
-    h += rewardCard();
+    h += rewardCard() + chCard();
 
     // week
     h += '<section class="panel"><h2>이번 주</h2><div class="week">';
@@ -656,6 +835,14 @@ input, textarea { font-size: 16px; }
     else if (el.dataset.extra) toggleExtra(selected);
     else if (el.dataset.mark) toggleMark(selected, el.dataset.mark);
     else if (el.dataset.chip) fillChip(el.dataset.chip);
+    else if (el.dataset.chOpen) { screen = "challenge"; render(); window.scrollTo(0, 0); if (ch.on) chRefresh(); }
+    else if (el.dataset.chBack) { screen = ""; chAskLeave = false; render(); }
+    else if (el.dataset.chGen) chGen();
+    else if (el.dataset.chRefresh) chRefresh();
+    else if (el.dataset.chCopy) { var code = ch.room, mEl = document.getElementById("ch-copy-msg"); (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(code) : Promise.reject()).then(function () { if (mEl) mEl.textContent = "코드를 복사했어요."; }, function () { if (mEl) mEl.textContent = "복사하지 못했어요. 위의 코드를 직접 길게 눌러 복사해 주세요."; }); }
+    else if (el.dataset.chAsk) { chAskLeave = true; render(); }
+    else if (el.dataset.chCancel) { chAskLeave = false; render(); }
+    else if (el.dataset.chLeave) chLeave();
     else if (el.dataset.ticket) toggleTicket(el.dataset.ticket);
     else if (el.dataset.settings) { editing = true; render(); window.scrollTo(0, 0); }
     else if (el.dataset.cancel) { editing = false; render(); }
@@ -672,6 +859,7 @@ input, textarea { font-size: 16px; }
   app.addEventListener("submit", function (e) {
     e.preventDefault();
     if (e.target.id === "setup-form") { saveSettings(); return; }
+    if (e.target.id === "ch-form") { chJoin(); return; }
     if (e.target.id !== "todo-form") return;
     addTodo(selected, document.getElementById("todo-text").value);
   });
@@ -726,6 +914,7 @@ input, textarea { font-size: 16px; }
   ready = !!state.settings.setup;
   render();
   setTimeout(setReady, 3000);
+  if (ch.on) chRefresh();
 
   (async function connect() {
     try {
